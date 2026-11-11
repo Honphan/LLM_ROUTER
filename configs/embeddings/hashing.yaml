@@ -1,0 +1,8 @@
+# Offline, deterministic embedder for toy runs and tests. No API key, no cost.
+embedder:
+  name: hashing
+  params:
+    dim: 256
+    ngram: 3
+  cache_dir: data/cache/embeddings
+  dtype: float32

@@ -1,0 +1,14 @@
+# Model pair of the RouteLLM paper. Prices and token averages from appendix D
+# (gpt-4-1106: $10 / $30 per 1M tokens; Mixtral 8x7B: $0.24 flat; 95 in / 264 out tokens).
+models:
+  strong:
+    name: gpt-4-1106-preview
+    input_usd_per_mtok: 10.0
+    output_usd_per_mtok: 30.0
+  weak:
+    name: mixtral-8x7b-instruct-v0.1
+    input_usd_per_mtok: 0.24
+    output_usd_per_mtok: 0.24
+  avg_tokens:
+    input: 95
+    output: 264

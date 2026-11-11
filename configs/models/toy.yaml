@@ -1,0 +1,13 @@
+# Fictional model pair for synthetic data. Prices are placeholders with a 100x gap.
+models:
+  strong:
+    name: toy-strong
+    input_usd_per_mtok: 10.0
+    output_usd_per_mtok: 30.0
+  weak:
+    name: toy-weak
+    input_usd_per_mtok: 0.1
+    output_usd_per_mtok: 0.3
+  avg_tokens:
+    input: 100
+    output: 250
