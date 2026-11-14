@@ -22,11 +22,13 @@ import llmrouter.routers  # noqa: F401 - registers routers
 from llmrouter import config as cfg
 from llmrouter.data import tiers as tiers_mod
 from llmrouter.data.contamination import find_contaminated
+from llmrouter.data.download import download_files
 from llmrouter.data.filters import filter_battles
 from llmrouter.data.io import load_battles, load_benchmark
+from llmrouter.data.prepare import convert_all
 from llmrouter.data.split import split_calibration
 from llmrouter.data.toy import make_toy_battles, make_toy_benchmark
-from llmrouter.embeddings import Embedder, embed_cached
+from llmrouter.embeddings import CachingEmbedder, Embedder
 from llmrouter.evaluation import runner
 from llmrouter.evaluation.calibrate import calibrate as calibrate_thresholds
 from llmrouter.llm.cost import ModelPrice, routed_cost_usd
@@ -58,8 +60,14 @@ def model_pair(config: Config) -> tuple[str, str]:
 
 
 def build_embedder(config: Config) -> Embedder:
-    return EMBEDDERS.create(
+    """The configured embedder, wrapped so every call goes through the on-disk cache."""
+    inner = EMBEDDERS.create(
         cfg.get(config, "embedder.name"), **(cfg.get(config, "embedder.params", None) or {})
+    )
+    return CachingEmbedder(
+        inner,
+        cfg.get(config, "embedder.cache_dir", None),
+        cfg.get(config, "embedder.dtype", "float32"),
     )
 
 
@@ -71,15 +79,6 @@ def build_router(config: Config) -> Router:
         weak_model=weak,
         seed=int(cfg.get(config, "seed", 0)),
         **(cfg.get(config, "router.params", None) or {}),
-    )
-
-
-def _embed(config: Config, embedder: Embedder, texts: Sequence[str]) -> NDArray[np.floating]:
-    return embed_cached(
-        embedder,
-        list(texts),
-        cfg.get(config, "embedder.cache_dir", None),
-        cfg.get(config, "embedder.dtype", "float32"),
     )
 
 
@@ -141,6 +140,16 @@ def toy_data(config: Config) -> dict[str, Any]:
     }
 
 
+def prepare_sources(config: Config) -> dict[str, Any]:
+    """Download the raw files listed in ``data.prepare`` and write the processed tables."""
+    prepare = cfg.get(config, "data.prepare", None)
+    if not prepare:
+        raise ValueError("config has no data.prepare block")
+    raw_dir = prepare.get("raw_dir", "data/raw")
+    downloads = download_files(prepare.get("downloads") or [], raw_dir)
+    return {"downloads": downloads, "written": convert_all(prepare, raw_dir)}
+
+
 def info(config: Config) -> dict[str, Any]:
     """Describe the data an experiment would fit on."""
     data = prepare_data(config)
@@ -184,7 +193,7 @@ def fit(config: Config) -> dict[str, Any]:
     embeddings: NDArray[np.floating] | None = None
     if router.uses_embeddings:
         embedder = build_embedder(config)
-        embeddings = _embed(config, embedder, data.fit["prompt"].tolist())
+        embeddings = embedder.embed(data.fit["prompt"].tolist())
     router.fit(data.fit, embeddings, embedder)
     router.save(out_dir / "router")
     return {
@@ -234,8 +243,8 @@ def evaluate(config: Config) -> dict[str, Any]:
     train_prompts = sorted(prepare_data(config).fit["prompt"].unique())
     threshold = float(cfg.get(config, "eval.contamination_threshold", 0.95))
     contaminated = find_contaminated(
-        _embed(config, embedder, benchmark["prompt"].tolist()),
-        _embed(config, embedder, train_prompts),
+        embedder.embed(benchmark["prompt"].tolist()),
+        embedder.embed(train_prompts),
         threshold,
     )
     n_removed = int(contaminated.sum())

@@ -1,0 +1,102 @@
+# Public data used by the RouteLLM paper: Chatbot Arena battles (fit) and the graded
+# benchmark responses shipped with the reference code (evaluate). All free to download.
+# `prepare-data` fetches these into data/raw and writes the processed tables.
+data:
+  prepare:
+    raw_dir: data/raw
+    downloads:
+      - url: https://huggingface.co/datasets/lmarena-ai/arena-human-preference-55k/resolve/main/train.csv
+        path: arena_55k/train.csv
+      # lm-sys/RouteLLM pinned at commit 0b64fdafe049e596a3f5657c219329f24af24198
+      - base_url: https://raw.githubusercontent.com/lm-sys/RouteLLM/0b64fdafe049e596a3f5657c219329f24af24198/routellm/evals/mt_bench
+        dir: routellm_evals/mt_bench
+        files: [question.jsonl, judgements.jsonl, contaminated_prompts.jsonl]
+      - base_url: https://raw.githubusercontent.com/lm-sys/RouteLLM/0b64fdafe049e596a3f5657c219329f24af24198/routellm/evals/gsm8k
+        dir: routellm_evals/gsm8k
+        files: [gsm8k_responses.csv, contaminated_prompts.jsonl]
+      - base_url: https://raw.githubusercontent.com/lm-sys/RouteLLM/0b64fdafe049e596a3f5657c219329f24af24198/routellm/evals/mmlu
+        dir: routellm_evals/mmlu
+        files: [contaminated_prompts.jsonl]
+      - base_url: https://raw.githubusercontent.com/lm-sys/RouteLLM/0b64fdafe049e596a3f5657c219329f24af24198/routellm/evals/mmlu/responses
+        dir: routellm_evals/mmlu/responses
+        files:
+          - mmlu_abstract_algebra.csv
+          - mmlu_anatomy.csv
+          - mmlu_astronomy.csv
+          - mmlu_business_ethics.csv
+          - mmlu_clinical_knowledge.csv
+          - mmlu_college_biology.csv
+          - mmlu_college_chemistry.csv
+          - mmlu_college_computer_science.csv
+          - mmlu_college_mathematics.csv
+          - mmlu_college_medicine.csv
+          - mmlu_college_physics.csv
+          - mmlu_computer_security.csv
+          - mmlu_conceptual_physics.csv
+          - mmlu_econometrics.csv
+          - mmlu_electrical_engineering.csv
+          - mmlu_elementary_mathematics.csv
+          - mmlu_formal_logic.csv
+          - mmlu_global_facts.csv
+          - mmlu_high_school_biology.csv
+          - mmlu_high_school_chemistry.csv
+          - mmlu_high_school_computer_science.csv
+          - mmlu_high_school_european_history.csv
+          - mmlu_high_school_geography.csv
+          - mmlu_high_school_government_and_politics.csv
+          - mmlu_high_school_macroeconomics.csv
+          - mmlu_high_school_mathematics.csv
+          - mmlu_high_school_microeconomics.csv
+          - mmlu_high_school_physics.csv
+          - mmlu_high_school_psychology.csv
+          - mmlu_high_school_statistics.csv
+          - mmlu_high_school_us_history.csv
+          - mmlu_high_school_world_history.csv
+          - mmlu_human_aging.csv
+          - mmlu_human_sexuality.csv
+          - mmlu_international_law.csv
+          - mmlu_jurisprudence.csv
+          - mmlu_logical_fallacies.csv
+          - mmlu_machine_learning.csv
+          - mmlu_management.csv
+          - mmlu_marketing.csv
+          - mmlu_medical_genetics.csv
+          - mmlu_miscellaneous.csv
+          - mmlu_moral_disputes.csv
+          - mmlu_moral_scenarios.csv
+          - mmlu_nutrition.csv
+          - mmlu_philosophy.csv
+          - mmlu_prehistory.csv
+          - mmlu_professional_accounting.csv
+          - mmlu_professional_law.csv
+          - mmlu_professional_medicine.csv
+          - mmlu_professional_psychology.csv
+          - mmlu_public_relations.csv
+          - mmlu_security_studies.csv
+          - mmlu_sociology.csv
+          - mmlu_us_foreign_policy.csv
+          - mmlu_virology.csv
+          - mmlu_world_religions.csv
+    battles:
+      - kind: arena_55k
+        raw: arena_55k/train.csv
+        source: arena
+        output: data/processed/arena_battles.parquet
+    benchmarks:
+      - kind: mt_bench
+        questions: routellm_evals/mt_bench/question.jsonl
+        judgements: routellm_evals/mt_bench/judgements.jsonl
+        strong_column: gpt-4-1106-preview
+        weak_column: mistralai/Mixtral-8x7B-Instruct-v0.1
+        output: data/processed/bench_mt_bench.parquet
+      - kind: correctness_csv
+        raw: routellm_evals/mmlu/responses
+        strong_column: gpt-4-1106-preview
+        weak_column: mistralai/Mixtral-8x7B-Instruct-v0.1
+        output: data/processed/bench_mmlu.parquet
+      - kind: correctness_csv
+        raw: routellm_evals/gsm8k/gsm8k_responses.csv
+        strong_column: gpt-4-1106-preview
+        weak_column: mistralai/Mixtral-8x7B-Instruct-v0.1
+        output: data/processed/bench_gsm8k.parquet
+

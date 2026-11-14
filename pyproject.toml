@@ -17,7 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "scikit-learn>=1.4"]
 openai = ["openai>=1.30"]
-hf = ["datasets>=2.19"]
+hf = ["sentence-transformers>=3.0"]
 plot = ["matplotlib>=3.8"]
 
 [tool.setuptools.packages.find]
