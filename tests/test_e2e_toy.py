@@ -126,3 +126,20 @@ def test_errors_return_exit_code_1(config_path: Path, capsys: pytest.CaptureFixt
     assert main(["evaluate", "--config", str(config_path)]) == 1  # not fitted yet
     assert main(["fit", "--config", str(config_path), "--set", "router.name=missing"]) == 1
     assert main(["fit", "--config", str(config_path), "--set", "models.weak.name=nope"]) == 1
+
+
+def test_sw_ranking_cycle_beats_random(
+    config_path: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = ["--config", str(config_path), "--set", "name=sw_toy"]
+    config += ["--set", "router.name=sw_ranking", "--set", "router.params.gamma=10"]
+    _run(capsys, "toy-data", *config)
+    _run(capsys, "fit", *config)
+    assert (tmp_path / "experiments" / "sw_toy" / "router" / "state.npz").exists()
+    _run(capsys, "calibrate", *config, "--pct", "0.5")
+    summary = _run(capsys, "evaluate", *config)
+    assert summary["router"] == "sw_ranking"
+    assert summary["apgr"] > summary["random"]["apgr_mean"] + 0.15
+    assert summary["cpt_50"] < summary["random"]["cpt_50_mean"]
+    routed = _run(capsys, "route", *config, "--pct", "0.5", "--explain", "--prompt", "prove it")
+    assert 0.0 <= routed[0]["max_similarity"] <= 1.0

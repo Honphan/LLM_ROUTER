@@ -57,3 +57,35 @@ def embed_cached(
     (directory / f"{key}.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     log.info("embedding cache write: %s (%d texts)", array_path.name, len(texts))
     return embeddings
+
+
+class CachingEmbedder(Embedder):
+    """Wrap an embedder so every ``embed`` call goes through the on-disk cache.
+
+    Texts are embedded as their sorted unique set and mapped back, so two calls over the
+    same set of texts (in any order, with any duplicates) share one cache entry. The
+    wrapper keeps the inner embedder's ``name`` and ``dim``: it is the same embedding space.
+    """
+
+    def __init__(
+        self, inner: Embedder, cache_dir: str | Path | None, dtype: str = "float32"
+    ) -> None:
+        self._inner = inner
+        self._cache_dir = cache_dir
+        self._dtype = dtype
+
+    @property
+    def name(self) -> str:
+        return self._inner.name
+
+    @property
+    def dim(self) -> int:
+        return self._inner.dim
+
+    def embed(self, texts: Sequence[str]) -> NDArray[np.floating]:
+        if len(texts) == 0:
+            return np.empty((0, self.dim), dtype=self._dtype)
+        unique = sorted(set(texts))
+        position = {text: i for i, text in enumerate(unique)}
+        embeddings = embed_cached(self._inner, unique, self._cache_dir, self._dtype)
+        return embeddings[np.fromiter((position[t] for t in texts), np.int64, len(texts))]

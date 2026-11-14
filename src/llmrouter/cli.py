@@ -1,4 +1,7 @@
-"""Command line: ``python -m llmrouter {toy-data|info|fit|calibrate|evaluate|route|report}``."""
+"""Command line: ``python -m llmrouter <command> --config <experiment.yaml>``.
+
+Commands: toy-data, prepare-data, info, fit, calibrate, evaluate, route, report.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     descriptions = {
         "toy-data": "write synthetic battles and benchmark (offline)",
+        "prepare-data": "download public raw data and convert it to the standard tables",
         "info": "describe the data an experiment would fit on",
         "fit": "fit the router and save it",
         "calibrate": "find thresholds for target strong-call rates",
@@ -66,6 +70,8 @@ def _run(args: argparse.Namespace) -> Any:
     config = load_config(args.config, args.overrides)
     if args.command == "toy-data":
         return pipeline.toy_data(config)
+    if args.command == "prepare-data":
+        return pipeline.prepare_sources(config)
     if args.command == "info":
         return pipeline.info(config)
     if args.command == "fit":

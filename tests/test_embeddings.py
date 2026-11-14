@@ -85,3 +85,49 @@ def test_cache_disabled_and_bad_dtype(tmp_path: Path) -> None:
     assert embedder.calls == 2
     with pytest.raises(ValueError, match="dtype"):
         embed_cached(embedder, ["a"], tmp_path, dtype="int8")
+
+
+def test_caching_embedder_shares_one_entry_per_text_set(tmp_path: Path) -> None:
+    from llmrouter.embeddings import CachingEmbedder
+
+    inner = CountingEmbedder()
+    cached = CachingEmbedder(inner, tmp_path)
+    assert (cached.name, cached.dim) == (inner.name, inner.dim)
+    first = cached.embed(["bb", "a", "bb", "ccc"])
+    assert first.shape == (4, 2) and np.array_equal(first[0], first[2])
+    assert first[:, 0].tolist() == [2.0, 1.0, 2.0, 3.0]
+    again = cached.embed(["ccc", "a", "bb"])  # same set, other order: no new embed call
+    assert inner.calls == 1 and again[:, 0].tolist() == [3.0, 1.0, 2.0]
+    assert cached.embed([]).shape == (0, 2) and inner.calls == 1
+
+
+def test_sentence_transformer_embedder_with_fake_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    import types
+
+    class FakeModel:
+        device = "cpu"
+
+        def __init__(self, name: str, device: str | None = None) -> None:
+            self.name, self.max_seq_length = name, 0
+
+        def get_sentence_embedding_dimension(self) -> int:
+            return 3
+
+        def encode(self, texts: list[str], **kwargs: object) -> np.ndarray:
+            assert kwargs["normalize_embeddings"] is True
+            return np.ones((len(texts), 3), dtype=np.float64)
+
+    fake = types.ModuleType("sentence_transformers")
+    fake.SentenceTransformer = FakeModel  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
+
+    embedder = EMBEDDERS.create("sentence_transformers", model="org/tiny", max_seq_length=128)
+    assert embedder.name == "st-org/tiny-len128"
+    out = embedder.embed(["a", "b"])
+    assert out.shape == (2, 3) and out.dtype == np.float32 and embedder.dim == 3
+    assert embedder.embed([]).shape == (0, 3)
+    wrong = EMBEDDERS.create("sentence_transformers", model="org/tiny", dim=5)
+    assert wrong.dim == 5  # configured dim is trusted until the model is loaded
+    with pytest.raises(ValueError, match="produces 3"):
+        wrong.embed(["a"])

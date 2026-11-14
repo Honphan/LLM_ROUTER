@@ -1,0 +1,31 @@
+# Random baseline on synthetic data: checks the whole pipeline offline.
+include:
+  - ../embeddings/hashing.yaml
+  - ../models/toy.yaml
+
+name: random_toy
+seed: 0
+output_dir: experiments
+
+data:
+  sources:
+    - path: data/processed/toy_battles.parquet
+      weight: 1.0
+  min_prompt_chars: 16
+  n_tiers: 10
+  calibration_fraction: 0.1
+  model_aliases: {}
+  toy:
+    battles_path: data/processed/toy_battles.parquet
+    n_battles: 2000
+    n_benchmark: 300
+
+router:
+  name: random
+  params: {}
+
+eval:
+  benchmark_name: toy
+  benchmark_path: data/processed/bench_toy.parquet
+  random_seeds: 20
+  contamination_threshold: 0.95

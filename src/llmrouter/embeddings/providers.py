@@ -1,15 +1,19 @@
-"""Embedding providers. Offline ``hashing`` only for now; API providers come with real data."""
+"""Embedding providers: offline ``hashing`` and local ``sentence_transformers`` models."""
 
 from __future__ import annotations
 
+import logging
 import zlib
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 from llmrouter.embeddings.base import Embedder
 from llmrouter.registry import EMBEDDERS
+
+log = logging.getLogger(__name__)
 
 
 @EMBEDDERS.register("hashing")
@@ -55,3 +59,79 @@ class HashingEmbedder(Embedder):
             np.add.at(out[row], buckets, signs)
         norms = np.linalg.norm(out, axis=1, keepdims=True)
         return out / np.maximum(norms, 1e-12)
+
+
+@EMBEDDERS.register("sentence_transformers")
+class SentenceTransformerEmbedder(Embedder):
+    """Local sentence-transformers model: free, no API key, GPU if available.
+
+    The model is loaded on first use. Give ``dim`` in the config to let cache lookups
+    work without loading the model; it is checked against the model once loaded.
+    Needs the ``hf`` extra (``uv pip install -e ".[hf]"``).
+    """
+
+    def __init__(
+        self,
+        model: str,
+        dim: int | None = None,
+        max_seq_length: int = 512,
+        batch_size: int = 64,
+        device: str = "auto",
+        fp16: bool = True,
+    ) -> None:
+        self._model_name = model
+        self._dim = dim
+        self._max_seq_length = max_seq_length
+        self._batch_size = batch_size
+        self._device = device
+        self._fp16 = fp16
+        self._model: Any = None
+
+    @property
+    def name(self) -> str:
+        return f"st-{self._model_name}-len{self._max_seq_length}"
+
+    @property
+    def dim(self) -> int:
+        if self._dim is None:
+            self._load()
+        assert self._dim is not None
+        return self._dim
+
+    def _load(self) -> Any:
+        if self._model is not None:
+            return self._model
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as error:  # pragma: no cover - depends on the environment
+            raise ValueError(
+                "embedder 'sentence_transformers' needs the 'hf' extra: uv pip install -e \".[hf]\""
+            ) from error
+        device = None if self._device == "auto" else self._device
+        model = SentenceTransformer(self._model_name, device=device)
+        model.max_seq_length = self._max_seq_length
+        if self._fp16 and str(model.device).startswith("cuda"):
+            model.half()
+        get_dim = getattr(model, "get_embedding_dimension", None)
+        actual = int((get_dim or model.get_sentence_embedding_dimension)())
+        if self._dim is not None and self._dim != actual:
+            raise ValueError(
+                f"embedder dim is configured as {self._dim} but '{self._model_name}' "
+                f"produces {actual}"
+            )
+        self._dim = actual
+        self._model = model
+        log.info("loaded %s on %s", self._model_name, model.device)
+        return model
+
+    def embed(self, texts: Sequence[str]) -> NDArray[np.float32]:
+        if len(texts) == 0:
+            return np.empty((0, self.dim), dtype=np.float32)
+        vectors = self._load().encode(
+            list(texts),
+            batch_size=self._batch_size,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=len(texts) > 2000,
+        )
+        return np.asarray(vectors, dtype=np.float32)

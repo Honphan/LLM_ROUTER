@@ -1,0 +1,36 @@
+# SW ranking fit on Chatbot Arena (55k human-preference battles), local bge-small embedder.
+# Default benchmark is MT Bench; evaluate the other two with
+#   --set eval.benchmark_name=mmlu  --set eval.benchmark_path=data/processed/bench_mmlu.parquet
+#   --set eval.benchmark_name=gsm8k --set eval.benchmark_path=data/processed/bench_gsm8k.parquet
+include:
+  - ../embeddings/bge_small.yaml
+  - ../models/gpt4_mixtral.yaml
+  - ../data/routellm_public.yaml
+
+name: sw_ranking_arena
+seed: 0
+output_dir: experiments
+
+data:
+  sources:
+    - path: data/processed/arena_battles.parquet
+      weight: 1.0
+  min_prompt_chars: 16
+  n_tiers: 10
+  calibration_fraction: 0.05
+  model_aliases: {}
+
+router:
+  name: sw_ranking
+  params:
+    gamma: 10.0
+    normalize_by_max: true
+    prior: 0.0
+    batch_size: 256
+    store_dtype: float32
+
+eval:
+  benchmark_name: mt_bench
+  benchmark_path: data/processed/bench_mt_bench.parquet
+  random_seeds: 20
+  contamination_threshold: 0.95

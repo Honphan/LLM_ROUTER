@@ -1,0 +1,13 @@
+# Local, free sentence embedder (no API key). English model, 384 dimensions, ~130 MB.
+# Uses the GPU when torch sees one, otherwise the CPU.
+embedder:
+  name: sentence_transformers
+  params:
+    model: BAAI/bge-small-en-v1.5
+    dim: 384
+    max_seq_length: 512
+    batch_size: 64
+    device: auto
+    fp16: true
+  cache_dir: data/cache/embeddings
+  dtype: float32
