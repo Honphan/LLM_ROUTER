@@ -50,7 +50,7 @@ def convert_arena(raw: pd.DataFrame, source: str = "arena") -> pd.DataFrame:
     """Convert raw Arena rows to ``prompt, model_a, model_b, winner, source, weight``."""
     missing = [column for column in ARENA_RAW_COLUMNS if column not in raw.columns]
     if missing:
-        raise ValueError(f"arena data is missing columns: {missing}")
+        raise ValueError(f"{source} data is missing columns: {missing}")
     a_wins = pd.to_numeric(raw["winner_model_a"]).to_numpy() == 1
     b_wins = pd.to_numeric(raw["winner_model_b"]).to_numpy() == 1
     out = pd.DataFrame(
@@ -64,5 +64,7 @@ def convert_arena(raw: pd.DataFrame, source: str = "arena") -> pd.DataFrame:
         }
     )
     keep = (out["model_a"] != out["model_b"]) & (out["prompt"].str.len() > 0)
-    log.info("arena: %d raw rows -> %d battles (dropped self-play / empty)", len(out), keep.sum())
+    log.info(
+        "%s: %d raw rows -> %d battles (dropped self-play / empty)", source, len(out), keep.sum()
+    )
     return validate_battles(out.loc[keep, list(BATTLE_COLUMNS)])

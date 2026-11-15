@@ -110,7 +110,12 @@ def check_pair(
     weak_model: str,
     aliases: Mapping[str, str] | None = None,
 ) -> tuple[int, int]:
-    """Return (strong tier, weak tier); raise if unknown, equal, or in the wrong order."""
+    """Return (strong tier, weak tier); raise if either is unknown or both are equal.
+
+    The weak model may sit in a better tier than the strong one: that happens when the fit
+    data contains judge-labelled battles, where "weak wins" means "weak answer is good
+    enough" (ADR 0005). It is logged as a warning, not an error.
+    """
     resolved = [resolve_model(model, aliases) for model in (strong_model, weak_model)]
     for original, model in zip((strong_model, weak_model), resolved, strict=True):
         if model not in tiers:
@@ -118,10 +123,18 @@ def check_pair(
                 f"model '{original}' has no tier; add it to data.model_aliases or the battles"
             )
     strong_tier, weak_tier = tiers[resolved[0]], tiers[resolved[1]]
-    if strong_tier >= weak_tier:
+    if strong_tier == weak_tier:
         raise ValueError(
-            f"strong model '{strong_model}' (tier {strong_tier}) must be in a better tier "
-            f"than weak model '{weak_model}' (tier {weak_tier})"
+            f"strong model '{strong_model}' and weak model '{weak_model}' are in the same "
+            f"tier ({strong_tier}); the battles cannot tell them apart"
+        )
+    if strong_tier > weak_tier:
+        log.warning(
+            "weak model '%s' (tier %d) is rated above strong model '%s' (tier %d) in the fit data",
+            weak_model,
+            weak_tier,
+            strong_model,
+            strong_tier,
         )
     return strong_tier, weak_tier
 

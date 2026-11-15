@@ -7,6 +7,9 @@ data:
     downloads:
       - url: https://huggingface.co/datasets/lmarena-ai/arena-human-preference-55k/resolve/main/train.csv
         path: arena_55k/train.csv
+      # GPT-4-judge battles of the paper (gpt-4-1106 vs Mixtral, 109k rows, 167 MB), pinned revision
+      - url: https://huggingface.co/datasets/routellm/gpt4_judge_battles/resolve/2a1afe8d0659904c0f6f59de6179e086fdb027c7/data/train-00000-of-00001.parquet
+        path: gpt4_judge/train.parquet
       # lm-sys/RouteLLM pinned at commit 0b64fdafe049e596a3f5657c219329f24af24198
       - base_url: https://raw.githubusercontent.com/lm-sys/RouteLLM/0b64fdafe049e596a3f5657c219329f24af24198/routellm/evals/mt_bench
         dir: routellm_evals/mt_bench
@@ -82,6 +85,10 @@ data:
         raw: arena_55k/train.csv
         source: arena
         output: data/processed/arena_battles.parquet
+      - kind: gpt4_judge
+        raw: gpt4_judge/train.parquet
+        source: gpt4_judge
+        output: data/processed/gpt4_judge_battles.parquet
     benchmarks:
       - kind: mt_bench
         questions: routellm_evals/mt_bench/question.jsonl
