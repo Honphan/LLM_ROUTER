@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 
 from llmrouter.data.sources.arena import ARENA_RAW_COLUMNS, convert_arena
+from llmrouter.data.sources.gpt4_judge import GPT4_JUDGE_SOURCE, convert_gpt4_judge
 from llmrouter.data.sources.routellm_bench import convert_correctness_table, convert_mt_bench
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,12 @@ Spec = Mapping[str, Any]
 def _arena_55k(raw_dir: Path, spec: Spec) -> pd.DataFrame:
     raw = pd.read_csv(raw_dir / spec["raw"], usecols=list(ARENA_RAW_COLUMNS))
     return convert_arena(raw, source=str(spec.get("source", "arena")))
+
+
+def _gpt4_judge(raw_dir: Path, spec: Spec) -> pd.DataFrame:
+    """Parquet in the Arena layout; the response columns are never loaded."""
+    raw = pd.read_parquet(raw_dir / spec["raw"], columns=list(ARENA_RAW_COLUMNS))
+    return convert_gpt4_judge(raw, source=str(spec.get("source", GPT4_JUDGE_SOURCE)))
 
 
 def _correctness_csv(raw_dir: Path, spec: Spec) -> pd.DataFrame:
@@ -44,6 +51,7 @@ def _mt_bench(raw_dir: Path, spec: Spec) -> pd.DataFrame:
 
 CONVERTERS: dict[str, Callable[[Path, Spec], pd.DataFrame]] = {
     "arena_55k": _arena_55k,
+    "gpt4_judge": _gpt4_judge,
     "correctness_csv": _correctness_csv,
     "mt_bench": _mt_bench,
 }

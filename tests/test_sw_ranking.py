@@ -152,6 +152,18 @@ def test_router_ignores_same_tier_battles(toy_embedder: HashingEmbedder) -> None
     )
 
 
+def test_router_does_not_depend_on_tier_order(toy_embedder: HashingEmbedder) -> None:
+    rows = [(f"{HARD} case {i}", "model_a" if i < 2 else "model_b") for i in range(8)]
+    rows += [(f"{EASY} case {i}", "tie" if i < 3 else "model_b") for i in range(6)]
+    battles = _battles(rows)
+    # Same battles with the weak model in the better tier, as with judge-labelled data.
+    swapped = battles.assign(tier_a=1, tier_b=0)
+    prompts = [HARD, EASY]
+    expected = _fit(battles, toy_embedder).strong_win_rate(prompts)
+    assert np.all(expected < 0.5)  # the weak model wins most of these battles
+    assert _fit(swapped, toy_embedder).strong_win_rate(prompts) == pytest.approx(expected, abs=1e-9)
+
+
 def test_router_save_load_and_embedder_check(tmp_path: Path, toy_embedder: HashingEmbedder) -> None:
     rows = [(f"{HARD} case {i}", "model_a" if i % 3 else "model_b") for i in range(9)]
     router = _fit(_battles(rows), toy_embedder, gamma=5.0, store_dtype="float16")

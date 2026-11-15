@@ -1,0 +1,47 @@
+# SW ranking fit on Chatbot Arena (55k human-preference battles) plus the GPT-4-judge battles
+# of the RouteLLM paper ("Arena + judge" rows of tables 1 and 3), local bge-small embedder.
+# Both sources weigh 1.0, like the reference code. Ratings and tiers are computed on the
+# combined data, which ranks the weak model above the strong one (ADR 0005).
+# Default benchmark is MT Bench; evaluate the other two with
+#   --set eval.benchmark_name=mmlu  --set eval.benchmark_path=data/processed/bench_mmlu.parquet
+#   --set eval.benchmark_name=gsm8k --set eval.benchmark_path=data/processed/bench_gsm8k.parquet
+include:
+  - ../embeddings/bge_small.yaml
+  - ../models/gpt4_mixtral.yaml
+  - ../data/routellm_public.yaml
+
+name: sw_ranking_arena_judge
+seed: 0
+output_dir: experiments
+
+# Judge prompts are long (90th percentile ~1100 characters): the default batch of 64 runs
+# out of memory on a 4 GB GPU. Batch size is not part of the embedder name or cache key.
+embedder:
+  params:
+    batch_size: 16
+
+data:
+  sources:
+    - path: data/processed/arena_battles.parquet
+      weight: 1.0
+    - path: data/processed/gpt4_judge_battles.parquet
+      weight: 1.0
+  min_prompt_chars: 16
+  n_tiers: 10
+  calibration_fraction: 0.05
+  model_aliases: {}
+
+router:
+  name: sw_ranking
+  params:
+    gamma: 10.0
+    normalize_by_max: true
+    prior: 0.0
+    batch_size: 64 # ~144k cross-tier battles: 256 queries per batch needs about 1 GB of RAM
+    store_dtype: float32
+
+eval:
+  benchmark_name: mt_bench
+  benchmark_path: data/processed/bench_mt_bench.parquet
+  random_seeds: 20
+  contamination_threshold: 0.95

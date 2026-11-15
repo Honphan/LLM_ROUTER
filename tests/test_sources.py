@@ -16,6 +16,7 @@ from llmrouter.data.filters import filter_battles
 from llmrouter.data.prepare import convert_all
 from llmrouter.data.schema import BATTLE_COLUMNS
 from llmrouter.data.sources.arena import convert_arena, first_turn
+from llmrouter.data.sources.gpt4_judge import convert_gpt4_judge
 from llmrouter.data.sources.routellm_bench import convert_correctness_table, convert_mt_bench
 
 
@@ -49,6 +50,45 @@ def test_convert_arena_schema_winners_and_filter() -> None:
     assert len(filter_battles(battles, 16)) == 3  # "hi" is too short
     with pytest.raises(ValueError, match="missing columns"):
         convert_arena(_arena_raw().drop(columns=["winner_tie"]))
+
+
+def _judge_raw() -> pd.DataFrame:
+    """Judge rows: always big (a) vs small (b), plus response columns the converter ignores."""
+    rows = [
+        (0, "big", "small", json.dumps(["summarise this paragraph in one line"]), 0, 1, 0),
+        (1, "big", "small", json.dumps(["prove that the sum of two odd numbers is even"]), 1, 0, 0),
+        (2, "big", "small", json.dumps(["translate good morning into french"]), 0, 0, 1),
+        (3, "big", "small", json.dumps(["ok"]), 0, 1, 0),
+        (4, "big", "small", json.dumps([]), 0, 1, 0),
+    ]
+    columns = ["id", "model_a", "model_b", "prompt", "winner_model_a", "winner_model_b"]
+    frame = pd.DataFrame(rows, columns=[*columns, "winner_tie"])
+    frame["response_a"], frame["response_b"] = "answer a", "answer b"
+    return frame
+
+
+def test_convert_gpt4_judge_schema_winners_and_filter() -> None:
+    battles = convert_gpt4_judge(_judge_raw())
+    assert tuple(battles.columns) == BATTLE_COLUMNS
+    assert len(battles) == 4  # the row without any turn is dropped
+    assert battles["winner"].tolist() == ["model_b", "model_a", "tie", "model_b"]
+    assert set(battles["model_a"]) == {"big"} and set(battles["model_b"]) == {"small"}
+    assert set(battles["source"]) == {"gpt4_judge"} and set(battles["weight"]) == {1.0}
+    assert len(filter_battles(battles, 16)) == 3  # "ok" is too short
+    with pytest.raises(ValueError, match="gpt4_judge data is missing columns"):
+        convert_gpt4_judge(_judge_raw().drop(columns=["winner_model_b"]))
+
+
+def test_convert_all_reads_judge_parquet(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    (raw_dir / "judge").mkdir(parents=True)
+    _judge_raw().to_parquet(raw_dir / "judge" / "train.parquet", index=False)
+    output = tmp_path / "processed" / "judge.parquet"
+    spec = {"kind": "gpt4_judge", "raw": "judge/train.parquet", "output": str(output)}
+    written = convert_all({"battles": [spec]}, raw_dir)
+    assert written == [{"kind": "gpt4_judge", "output": str(output), "rows": 4}]
+    stored = pd.read_parquet(output)
+    assert tuple(stored.columns) == BATTLE_COLUMNS and set(stored["source"]) == {"gpt4_judge"}
 
 
 def test_convert_correctness_table() -> None:

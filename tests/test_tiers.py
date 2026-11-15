@@ -119,10 +119,17 @@ def test_check_pair_and_aliases() -> None:
     assert check_pair(tiers, "gpt", "mix") == (0, 2)
     assert check_pair(tiers, "new-strong", "mix", {"new-strong": "gpt"}) == (0, 2)
     assert resolve_model("new-strong", {"new-strong": "gpt"}) == "gpt"
-    with pytest.raises(ValueError, match="better tier"):
+    with pytest.raises(ValueError, match="same tier"):
         check_pair(tiers, "mix", "other")
     with pytest.raises(ValueError, match="no tier"):
         check_pair(tiers, "unknown", "mix")
+
+
+def test_check_pair_allows_weak_model_in_better_tier(caplog: pytest.LogCaptureFixture) -> None:
+    # Judge-labelled data rates the weak model above the strong one (ADR 0005).
+    with caplog.at_level("WARNING", logger="llmrouter.data.tiers"):
+        assert check_pair({"gpt": 2, "mix": 0}, "gpt", "mix") == (2, 0)
+    assert "rated above strong model" in caplog.text
 
 
 def test_assign_tiers_adds_columns() -> None:
